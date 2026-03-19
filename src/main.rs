@@ -76,8 +76,8 @@ fn run_ocr(args: &[String]) -> fast_plate_ocr::Result<()> {
     } else if args.len() >= 2 {
         println!("Using default OCR models.");
         (
-            "models/cct_s_v2_global.onnx".to_string(),
-            "models/cct_s_v2_global_plate_config.yaml".to_string(),
+            "models/cct_xs_v2_global.onnx".to_string(),
+            "models/cct_xs_v2_global_plate_config.yaml".to_string(),
             args[1..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
         )
     } else {
@@ -141,9 +141,9 @@ fn run_alpr(args: &[String]) -> fast_plate_ocr::Result<()> {
     } else if args.len() >= 2 {
         println!("Using default ALPR models.");
         (
-            "models/yolo-v9-t-384-license-plates-end2end.onnx".to_string(),
-            "models/cct_s_v2_global.onnx".to_string(),
-            "models/cct_s_v2_global_plate_config.yaml".to_string(),
+            "models/yolo-v9-t-416-license-plates-end2end.onnx".to_string(),
+            "models/cct_xs_v2_global.onnx".to_string(),
+            "models/cct_xs_v2_global_plate_config.yaml".to_string(),
             args[1..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
         )
     } else {

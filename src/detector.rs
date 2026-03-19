@@ -142,7 +142,7 @@ impl LicensePlateDetector {
             let num_detections = shape[0];
             if num_detections > 0 {
                 // Collect the data as a flat vector first
-                let total_elements = output_view.len();
+                let _total_elements = output_view.len();
                 let flat_data: Vec<f32> = output_view.iter().copied().collect();
 
                 // Reshape into rows of 7 columns
@@ -264,6 +264,7 @@ impl LicensePlateDetector {
     }
 
     /// Postprocess raw detection outputs into detection results.
+    #[allow(dead_code)]
     fn postprocess_detections(
         &self,
         output: ndarray::ArrayViewD<f32>,

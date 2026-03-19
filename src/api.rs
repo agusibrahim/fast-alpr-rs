@@ -14,9 +14,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use tokio::net::TcpListener;
 use tokio::task::spawn_blocking;
 
-const DEFAULT_DETECTOR: &str = "models/yolo-v9-t-384-license-plates-end2end.onnx";
-const DEFAULT_OCR_MODEL: &str = "models/cct_s_v2_global.onnx";
-const DEFAULT_OCR_CONFIG: &str = "models/cct_s_v2_global_plate_config.yaml";
+const DEFAULT_DETECTOR: &str = "models/yolo-v9-t-416-license-plates-end2end.onnx";
+const DEFAULT_OCR_MODEL: &str = "models/cct_xs_v2_global.onnx";
+const DEFAULT_OCR_CONFIG: &str = "models/cct_xs_v2_global_plate_config.yaml";
 
 /// Application state holding our default ALPR instance
 struct AppState {
@@ -294,16 +294,17 @@ async fn alpr_detect(
     }
 }
 
-/// Multipart upload schema for Swagger
+/// Dummy schema for utoipa to generate multipart properly
+#[allow(dead_code)]
 #[derive(ToSchema)]
 struct UploadImage {
     /// Image file (JPEG/PNG)
     #[schema(value_type = String, format = Binary)]
     image: Vec<u8>,
     /// Optional detection model path (e.g. "models/yolo-v9-t-512-license-plates-end2end.onnx")
-    #[schema(value_type = Option<String>, example = "models/yolo-v9-t-384-license-plates-end2end.onnx")]
+    #[schema(value_type = Option<String>, example = "models/yolo-v9-t-416-license-plates-end2end.onnx")]
     detector_model: Option<String>,
-    /// Optional OCR model path (e.g. "models/cct_s_v2_global.onnx"). Config YAML is auto-detected.
-    #[schema(value_type = Option<String>, example = "models/cct_s_v2_global.onnx")]
+    /// Optional OCR model path (e.g. "models/cct_xs_v2_global.onnx"). Config YAML is auto-detected.
+    #[schema(value_type = Option<String>, example = "models/cct_xs_v2_global.onnx")]
     ocr_model: Option<String>,
 }

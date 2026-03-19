@@ -64,24 +64,24 @@ pub fn decode_plate_output(
         if model_output.ndim() == 1 {
             // 1D output - single sample, reshape
             println!("Reshaping 1D output to (1, {}, {})", max_plate_slots, vocab_size);
-            owned.into_shape((1, max_plate_slots, vocab_size))?
+            owned.into_shape_with_order((1, max_plate_slots, vocab_size))?
         } else if model_output.ndim() == 2 {
             // 2D output
             let shape = model_output.shape();
             println!("2D output with shape {:?}", shape);
             if shape[0] == 1 && shape[1] == max_plate_slots * vocab_size {
                 println!("Reshaping (1, {}) to (1, {}, {})", shape[1], max_plate_slots, vocab_size);
-                owned.into_shape((1, max_plate_slots, vocab_size))?
+                owned.into_shape_with_order((1, max_plate_slots, vocab_size))?
             } else if shape[1] == max_plate_slots && shape[0] == vocab_size {
                 // Transpose needed: (vocab_size, max_plate_slots) -> (max_plate_slots, vocab_size)
                 println!("Transposing 2D array from ({}, {}) to (1, {}, {})",
                          shape[0], shape[1], max_plate_slots, vocab_size);
-                let reshaped = owned.into_shape((vocab_size, max_plate_slots))?;
+                let reshaped = owned.into_shape_with_order((vocab_size, max_plate_slots))?;
                 let transposed = reshaped.reversed_axes();
-                transposed.into_shape((1, max_plate_slots, vocab_size))?
+                transposed.into_shape_with_order((1, max_plate_slots, vocab_size))?
             } else {
                 println!("Trying to reshape 2D {:?} to (1, {}, {})", shape, max_plate_slots, vocab_size);
-                owned.into_shape((1, max_plate_slots, vocab_size))?
+                owned.into_shape_with_order((1, max_plate_slots, vocab_size))?
             }
         } else if model_output.ndim() == 3 {
             // Already 3D
