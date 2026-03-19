@@ -40,16 +40,16 @@ async fn main() -> fast_plate_ocr::Result<()> {
 }
 
 fn print_usage() {
-    println!("Usage: fast_plate_ocr <mode> [options] <image1.jpg> [image2.jpg] ...\n");
+    println!("Usage: fast_plate_ocr <mode> [options] <image1> [image2] ...\n");
     println!("Modes:");
     println!("  serve");
     println!("        Start the REST API server on port 3000");
     println!();
-    println!("  ocr  [model.onnx] [config.yaml] <image.jpg> [images...]");
+    println!("  ocr  [model.onnx] [config.yaml] <image> [images...]");
     println!("        Run OCR on pre-cropped license plate images.");
     println!("        If models are omitted, default local models will be used.");
     println!();
-    println!("  alpr [detector.onnx] [ocr.onnx] [config.yaml] <image.jpg> [images...]");
+    println!("  alpr [detector.onnx] [ocr.onnx] [config.yaml] <image> [images...]");
     println!("        Run full ALPR (detection + OCR) on traffic scene images.");
     println!("        If models are omitted, default local models will be used.");
     println!();
@@ -58,7 +58,7 @@ fn print_usage() {
     println!("  fast_plate_ocr serve");
     println!();
     println!("  # OCR with default models");
-    println!("  fast_plate_ocr ocr plate.jpg");
+    println!("  fast_plate_ocr ocr plate.webp");
     println!();
     println!("  # Full ALPR with default models");
     println!("  fast_plate_ocr alpr scene.jpg");

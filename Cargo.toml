@@ -8,7 +8,7 @@ edition = "2021"
 ort = { version = "2.0.0-rc.12", features = ["ndarray"] }
 
 # Image processing
-image = "0.25"
+image = { version = "0.25", features = ["webp", "jpeg", "png"] }
 
 # Array/tensor operations
 ndarray = "0.17"

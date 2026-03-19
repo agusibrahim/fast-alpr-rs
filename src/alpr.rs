@@ -127,7 +127,7 @@ impl ALPR {
     fn run_ocr_on_crop(&mut self, crop: DynamicImage) -> Result<Option<OCRResult>> {
         // Save crop to temp file and run OCR
         let temp_dir = std::env::temp_dir();
-        let temp_file = temp_dir.join("temp_plate_crop.jpg");
+        let temp_file = temp_dir.join("temp_plate_crop.png");
 
         // Save cropped image
         crop.save(&temp_file)?;

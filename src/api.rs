@@ -222,7 +222,14 @@ async fn alpr_detect(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let temp_file = std::env::temp_dir().join(format!("alpr_upload_{}.jpg", nanos));
+            
+        // Guess the format from the bytes to determine the correct extension
+        let ext = match image::guess_format(&bytes) {
+            Ok(format) => format.extensions_str().first().unwrap_or(&"jpg").to_string(),
+            Err(_) => "jpg".to_string(), // Fallback
+        };
+        
+        let temp_file = std::env::temp_dir().join(format!("alpr_upload_{}.{}", nanos, ext));
         if let Err(e) = std::fs::write(&temp_file, &bytes) {
             return Err(e.to_string());
         }
@@ -256,7 +263,7 @@ async fn alpr_detect(
 
     match result {
         Ok(results) => {
-            let plates = results.into_iter().map(|r| {
+            let mut plates: Vec<PlateResult> = results.into_iter().map(|r| {
                 let (text, region) = if let Some(ocr) = r.ocr {
                     (ocr.plate, ocr.region)
                 } else {
@@ -275,6 +282,17 @@ async fn alpr_detect(
                     }
                 }
             }).collect();
+
+            // Sort plates by combined score: (Bounding Box Area) * Confidence in descending order
+            plates.sort_by(|a, b| {
+                let area_a = (a.bbox.x2 - a.bbox.x1) * (a.bbox.y2 - a.bbox.y1);
+                let score_a = area_a * a.confidence;
+                
+                let area_b = (b.bbox.x2 - b.bbox.x1) * (b.bbox.y2 - b.bbox.y1);
+                let score_b = area_b * b.confidence;
+                
+                score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            });
 
             (StatusCode::OK, Json(ApiResponse {
                 success: true,
@@ -298,7 +316,7 @@ async fn alpr_detect(
 #[allow(dead_code)]
 #[derive(ToSchema)]
 struct UploadImage {
-    /// Image file (JPEG/PNG)
+    /// Image file (JPEG/PNG/WebP)
     #[schema(value_type = String, format = Binary)]
     image: Vec<u8>,
     /// Optional detection model path (e.g. "models/yolo-v9-t-512-license-plates-end2end.onnx")
