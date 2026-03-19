@@ -44,6 +44,22 @@ pub struct LicensePlateDetector {
     class_labels: Vec<String>,
 }
 
+/// Parse image input size from YOLO model filename (e.g. "yolo-v9-t-384-..." → 384).
+fn parse_img_size_from_path(model_path: &Path) -> usize {
+    let filename = model_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    for part in filename.split('-') {
+        if let Ok(n) = part.parse::<usize>() {
+            if (128..=1024).contains(&n) {
+                return n;
+            }
+        }
+    }
+    384
+}
+
 impl LicensePlateDetector {
     /// Create a new detector from a model file.
     pub fn new<P: AsRef<Path>>(
@@ -78,8 +94,8 @@ impl LicensePlateDetector {
             break; // Use the first output
         }
 
-        // Default size for yolo-v9-t-384 model
-        let img_size = 384;
+        // Parse image size from model filename (e.g. yolo-v9-t-384-... → 384)
+        let img_size = parse_img_size_from_path(model_path);
 
         // Default class label for license plate
         let class_labels = vec!["license_plate".to_string()];
@@ -164,8 +180,8 @@ impl LicensePlateDetector {
         let new_unpad_w = (orig_w * r).round();
         let new_unpad_h = (orig_h * r).round();
 
-        // Resize image
-        let resized = img.resize(
+        // Resize image (use resize_exact to avoid aspect ratio recomputation)
+        let resized = img.resize_exact(
             new_unpad_w as u32,
             new_unpad_h as u32,
             image::imageops::FilterType::Triangle,

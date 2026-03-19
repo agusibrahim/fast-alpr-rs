@@ -3,7 +3,12 @@
 use fast_plate_ocr::{ALPR, LicensePlateRecognizer, PlateConfig};
 use std::path::PathBuf;
 
-fn main() -> fast_plate_ocr::Result<()> {
+mod api;
+
+#[tokio::main]
+async fn main() -> fast_plate_ocr::Result<()> {
+    tracing_subscriber::fmt::init();
+    
     println!("Fast Plate OCR & ALPR - Rust Implementation");
     println!("===========================================\n");
 
@@ -19,6 +24,13 @@ fn main() -> fast_plate_ocr::Result<()> {
     match mode.as_str() {
         "ocr" => run_ocr(&args[1..]),
         "alpr" => run_alpr(&args[1..]),
+        "serve" => {
+            if let Err(e) = api::serve().await {
+                eprintln!("Server error: {}", e);
+                std::process::exit(1);
+            }
+            Ok(())
+        }
         _ => {
             println!("Unknown mode: {}", mode);
             print_usage();
@@ -30,34 +42,52 @@ fn main() -> fast_plate_ocr::Result<()> {
 fn print_usage() {
     println!("Usage: fast_plate_ocr <mode> [options] <image1.jpg> [image2.jpg] ...\n");
     println!("Modes:");
-    println!("  ocr  <model.onnx> <config.yaml> [images...]");
-    println!("        Run OCR on pre-cropped license plate images");
+    println!("  serve");
+    println!("        Start the REST API server on port 3000");
     println!();
-    println!("  alpr <detector.onnx> <ocr.onnx> <config.yaml> [images...]");
-    println!("        Run full ALPR (detection + OCR) on traffic scene images");
+    println!("  ocr  [model.onnx] [config.yaml] <image.jpg> [images...]");
+    println!("        Run OCR on pre-cropped license plate images.");
+    println!("        If models are omitted, default local models will be used.");
+    println!();
+    println!("  alpr [detector.onnx] [ocr.onnx] [config.yaml] <image.jpg> [images...]");
+    println!("        Run full ALPR (detection + OCR) on traffic scene images.");
+    println!("        If models are omitted, default local models will be used.");
     println!();
     println!("Examples:");
-    println!("  # OCR only (requires cropped license plates)");
-    println!("  fast_plate_ocr ocr cct_xs_v2_global.onnx cct_xs_v2_global_plate_config.yaml plate.jpg");
+    println!("  # Start server");
+    println!("  fast_plate_ocr serve");
     println!();
-    println!("  # Full ALPR (works with traffic scenes)");
-    println!("  fast_plate_ocr alpr yolo-v9-t-384-license-plates-end2end.onnx \\");
-    println!("      cct_xs_v2_global.onnx cct_xs_v2_global_plate_config.yaml scene.jpg");
+    println!("  # OCR with default models");
+    println!("  fast_plate_ocr ocr plate.jpg");
+    println!();
+    println!("  # Full ALPR with default models");
+    println!("  fast_plate_ocr alpr scene.jpg");
 }
 
 fn run_ocr(args: &[String]) -> fast_plate_ocr::Result<()> {
-    if args.len() < 4 {
-        println!("Usage: fast_plate_ocr ocr <model.onnx> <config.yaml> [images...]");
+    // If user passed <model.onnx> <config.yaml> <img1> ..., len >= 4
+    // If user just passed <img1> ..., len >= 2
+    let (model_path, config_path, image_paths) = if args.len() >= 4 && args[1].ends_with(".onnx") && args[2].ends_with(".yaml") {
+        (
+            args[1].clone(),
+            args[2].clone(),
+            args[3..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
+        )
+    } else if args.len() >= 2 {
+        println!("Using default OCR models.");
+        (
+            "models/cct_s_v2_global.onnx".to_string(),
+            "models/cct_s_v2_global_plate_config.yaml".to_string(),
+            args[1..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
+        )
+    } else {
+        println!("Usage: fast_plate_ocr ocr [model.onnx] [config.yaml] <images...>");
         std::process::exit(1);
-    }
-
-    let model_path = &args[2];
-    let config_path = &args[3];
-    let image_paths: Vec<PathBuf> = args[4..].iter().map(|s| PathBuf::from(s)).collect();
+    };
 
     // Load configuration
     println!("Loading config from: {}", config_path);
-    let config = PlateConfig::from_yaml(config_path)?;
+    let config = PlateConfig::from_yaml(&config_path)?;
     println!("  - Max plate slots: {}", config.max_plate_slots);
     println!("  - Alphabet size: {}", config.vocabulary_size());
     println!("  - Image size: {}x{}", config.img_width, config.img_height);
@@ -99,19 +129,31 @@ fn run_ocr(args: &[String]) -> fast_plate_ocr::Result<()> {
 }
 
 fn run_alpr(args: &[String]) -> fast_plate_ocr::Result<()> {
-    if args.len() < 5 {
-        println!("Usage: fast_plate_ocr alpr <detector.onnx> <ocr.onnx> <config.yaml> [images...]");
+    // If user passed <detector.onnx> <ocr.onnx> <config.yaml> <img1> ..., len >= 5
+    // If user just passed <img1> ..., len >= 2
+    let (detector_path, ocr_model_path, config_path, image_paths) = if args.len() >= 5 && args[1].ends_with(".onnx") && args[2].ends_with(".onnx") && args[3].ends_with(".yaml") {
+        (
+            args[1].clone(),
+            args[2].clone(),
+            args[3].clone(),
+            args[4..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
+        )
+    } else if args.len() >= 2 {
+        println!("Using default ALPR models.");
+        (
+            "models/yolo-v9-t-384-license-plates-end2end.onnx".to_string(),
+            "models/cct_s_v2_global.onnx".to_string(),
+            "models/cct_s_v2_global_plate_config.yaml".to_string(),
+            args[1..].iter().map(|s| PathBuf::from(s)).collect::<Vec<_>>()
+        )
+    } else {
+        println!("Usage: fast_plate_ocr alpr [detector.onnx] [ocr.onnx] [config.yaml] <images...>");
         std::process::exit(1);
-    }
-
-    let detector_path = &args[1];
-    let ocr_model_path = &args[2];
-    let config_path = &args[3];
-    let image_paths: Vec<PathBuf> = args[4..].iter().map(|s| PathBuf::from(s)).collect();
+    };
 
     // Load configuration
     println!("Loading config from: {}", config_path);
-    let config = PlateConfig::from_yaml(config_path)?;
+    let config = PlateConfig::from_yaml(&config_path)?;
     println!("  - Max plate slots: {}", config.max_plate_slots);
     println!("  - Alphabet size: {}", config.vocabulary_size());
     println!("  - Image size: {}x{}", config.img_width, config.img_height);

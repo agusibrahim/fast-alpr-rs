@@ -25,8 +25,14 @@ anyhow = "1"
 num-traits = "0.2"
 
 # Async for model downloading (optional)
-tokio = { version = "1", optional = true, features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 ureq = { version = "2", optional = true }
+axum = { version = "0.8.8", features = ["multipart"] }
+utoipa = { version = "5.4.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+serde_json = "1.0.149"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
@@ -34,6 +40,7 @@ tokio = { version = "1", features = ["full", "test-util"] }
 [features]
 default = []
 download-models = ["tokio", "ureq"]
+tokio = []
 
 [lib]
 name = "fast_plate_ocr"
