@@ -1,0 +1,44 @@
+[package]
+name = "fast_plate_ocr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# ONNX Runtime bindings
+ort = { version = "2.0.0-rc.12", features = ["ndarray"] }
+
+# Image processing
+image = "0.25"
+
+# Array/tensor operations
+ndarray = "0.17"
+
+# Config parsing
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Math operations
+num-traits = "0.2"
+
+# Async for model downloading (optional)
+tokio = { version = "1", optional = true, features = ["full"] }
+ureq = { version = "2", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[features]
+default = []
+download-models = ["tokio", "ureq"]
+
+[lib]
+name = "fast_plate_ocr"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fast_plate_ocr"
+path = "src/main.rs"
