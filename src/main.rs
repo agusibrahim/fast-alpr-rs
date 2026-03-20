@@ -25,7 +25,12 @@ async fn main() -> fast_plate_ocr::Result<()> {
         "ocr" => run_ocr(&args[1..]),
         "alpr" => run_alpr(&args[1..]),
         "serve" => {
-            if let Err(e) = api::serve().await {
+            let port = if args.len() >= 3 {
+                args[2].parse().unwrap_or(3000)
+            } else {
+                3000
+            };
+            if let Err(e) = api::serve(port).await {
                 eprintln!("Server error: {}", e);
                 std::process::exit(1);
             }
@@ -42,8 +47,8 @@ async fn main() -> fast_plate_ocr::Result<()> {
 fn print_usage() {
     println!("Usage: fast_plate_ocr <mode> [options] <image1> [image2] ...\n");
     println!("Modes:");
-    println!("  serve");
-    println!("        Start the REST API server on port 3000");
+    println!("  serve [port]");
+    println!("        Start the REST API server on the specified port (default 3000)");
     println!();
     println!("  ocr  [model.onnx] [config.yaml] <image> [images...]");
     println!("        Run OCR on pre-cropped license plate images.");
@@ -55,7 +60,7 @@ fn print_usage() {
     println!();
     println!("Examples:");
     println!("  # Start server");
-    println!("  fast_plate_ocr serve");
+    println!("  fast_plate_ocr serve 8080");
     println!();
     println!("  # OCR with default models");
     println!("  fast_plate_ocr ocr plate.webp");

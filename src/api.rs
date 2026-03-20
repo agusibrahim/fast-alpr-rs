@@ -70,7 +70,7 @@ pub struct ModelsResponse {
 )]
 struct ApiDoc;
 
-pub async fn serve() -> anyhow::Result<()> {
+pub async fn serve(port: u16) -> anyhow::Result<()> {
     println!("Loading config from: {}", DEFAULT_OCR_CONFIG);
     let config = PlateConfig::from_yaml(DEFAULT_OCR_CONFIG)?;
 
@@ -87,9 +87,10 @@ pub async fn serve() -> anyhow::Result<()> {
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
         .with_state(app_state);
 
-    let listener = TcpListener::bind("0.0.0.0:3000").await?;
-    println!("Server running on http://0.0.0.0:3000");
-    println!("Swagger UI available at http://0.0.0.0:3000/swagger-ui");
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = TcpListener::bind(&addr).await?;
+    println!("Server running on http://{}", addr);
+    println!("Swagger UI available at http://{}/swagger-ui", addr);
 
     axum::serve(listener, app).await?;
     Ok(())
