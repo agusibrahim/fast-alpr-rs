@@ -1,0 +1,229 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: ""
+            artifact_name: "fast_plate_ocr"
+
+          # Linux ARM64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            suffix: ""
+            artifact_name: "fast_plate_ocr"
+            use_cross: true
+
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: ".exe"
+            artifact_name: "fast_plate_ocr.exe"
+
+          # macOS x86_64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            suffix: ""
+            artifact_name: "fast_plate_ocr"
+
+          # macOS ARM64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            suffix: ""
+            artifact_name: "fast_plate_ocr"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross
+
+      - name: Setup ONNX Runtime - Linux x86_64
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+          mkdir -p $HOME/onnx-runtime
+          cd $HOME/onnx-runtime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-linux-x64-1.17.1.tgz
+          tar -xzf onnxruntime-linux-x64-1.17.1.tgz
+          echo "ORT_LIB_LOCATION=$HOME/onnx-runtime/onnxruntime-linux-x64-1.17.1/lib" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$HOME/onnx-runtime/onnxruntime-linux-x64-1.17.1/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Setup ONNX Runtime - Linux ARM64
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config gcc-aarch64-linux-gnu
+          mkdir -p $HOME/onnx-runtime
+          cd $HOME/onnx-runtime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-linux-aarch64-1.17.1.tgz
+          tar -xzf onnxruntime-linux-aarch64-1.17.1.tgz
+          echo "ORT_LIB_LOCATION=$HOME/onnx-runtime/onnxruntime-linux-aarch64-1.17.1/lib" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$HOME/onnx-runtime/onnxruntime-linux-aarch64-1.17.1/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Setup ONNX Runtime - Windows
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ort_version = "1.17.1"
+          $ort_url = "https://github.com/microsoft/onnxruntime/releases/download/v$ort_version/onnxruntime-win-x64-$ort_version.zip"
+          
+          New-Item -ItemType Directory -Path "$env:USERPROFILE\onnx-runtime" -Force | Out-Null
+          cd "$env:USERPROFILE\onnx-runtime"
+          
+          Invoke-WebRequest -Uri $ort_url -OutFile "onnxruntime.zip" -ErrorAction Stop
+          Expand-Archive -Path "onnxruntime.zip" -DestinationPath "." -Force
+          
+          $ort_path = Get-Item "onnxruntime-win-x64-$ort_version"
+          echo "ORT_LIB_LOCATION=$($ort_path.FullName)\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup ONNX Runtime - macOS x86_64
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: |
+          mkdir -p $HOME/onnx-runtime
+          cd $HOME/onnx-runtime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-osx-x86_64-1.17.1.tgz
+          tar -xzf onnxruntime-osx-x86_64-1.17.1.tgz
+          echo "ORT_LIB_LOCATION=$HOME/onnx-runtime/onnxruntime-osx-x86_64-1.17.1/lib" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=$HOME/onnx-runtime/onnxruntime-osx-x86_64-1.17.1/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Setup ONNX Runtime - macOS ARM64
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          mkdir -p $HOME/onnx-runtime
+          cd $HOME/onnx-runtime
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-osx-arm64-1.17.1.tgz
+          tar -xzf onnxruntime-osx-arm64-1.17.1.tgz
+          echo "ORT_LIB_LOCATION=$HOME/onnx-runtime/onnxruntime-osx-arm64-1.17.1/lib" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=$HOME/onnx-runtime/onnxruntime-osx-arm64-1.17.1/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }} --bin fast_plate_ocr
+          else
+            cargo build --release --target ${{ matrix.target }} --bin fast_plate_ocr
+          fi
+        shell: bash
+
+      - name: Check build status
+        if: steps.build.outcome != 'success'
+        run: |
+          echo "::warning::Build failed for ${{ matrix.target }}, will skip this artifact in release"
+
+      - name: Prepare artifact
+        id: prepare
+        if: steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release-artifacts/ || exit 0
+          ls -la release-artifacts/
+          echo "artifact_ready=true" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        if: steps.prepare.outputs.artifact_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-binary
+          path: release-artifacts/
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Prepare release files
+        id: prepare-release
+        run: |
+          mkdir -p release-files
+          found_any=false
+          
+          for dir in all-artifacts/*/; do
+            if [ -d "$dir" ]; then
+              target_name=$(basename "$dir")
+              echo "Processing: $target_name"
+              cp -v "$dir"* release-files/ 2>/dev/null || true
+              if [ -n "$(ls -A "$dir")" ]; then
+                found_any=true
+              fi
+            fi
+          done
+          
+          if [ "$found_any" = true ]; then
+            echo "release_ready=true" >> $GITHUB_OUTPUT
+            echo "Files ready for release:"
+            ls -lh release-files/
+          else
+            echo "::warning::No successful builds found for release"
+            echo "release_ready=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.prepare-release.outputs.release_ready == 'true' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        if: always()
+        run: |
+          echo "## 📦 Release Summary"
+          echo ""
+          if [ -d "release-files" ] && [ -n "$(ls -A "release-files")" ]; then
+            echo "### ✅ Successfully Built Artifacts:"
+            ls -1h release-files/
+          else
+            echo "### ⚠️ No successful builds to release"
+          fi
